@@ -731,6 +731,15 @@ module internal Z3 =
                     (key, Some term, typ))
             Memory.NewStackFrame state None (List.ofSeq frame)
 
+            let cm = state.concreteMemory
+            encodingCache.heapAddresses |> Seq.iter (fun kvp ->
+                let typ, _ = kvp.Key
+                let addr = kvp.Value
+                if VectorTime.less addr VectorTime.zero && not <| cm.Contains addr then
+                    cm.Allocate addr (Reflection.createObject typ))
+            state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
+            encodingCache.heapAddresses.Clear()
+
             let defaultValues = Dictionary<regionSort, term ref>()
             encodingCache.regionConstants |> Seq.iter (fun kvp ->
                 let region, fields = kvp.Key
@@ -771,14 +780,6 @@ module internal Z3 =
                 let constantValue = kvp.Value.Value
                 Memory.FillRegion state constantValue region)
 
-            encodingCache.heapAddresses |> Seq.iter (fun kvp ->
-                let typ, _ = kvp.Key
-                let addr = kvp.Value
-                if VectorTime.less addr VectorTime.zero && not <| PersistentDict.contains addr state.allocatedTypes then
-                    state.allocatedTypes <- PersistentDict.add addr (ConcreteType typ) state.allocatedTypes)
-            state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
-
-            encodingCache.heapAddresses.Clear()
             state.model <- PrimitiveModel subst
             StateModel state
 
