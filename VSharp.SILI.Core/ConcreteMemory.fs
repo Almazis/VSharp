@@ -131,6 +131,9 @@ type public ConcreteMemory private (physToVirt, virtToPhys) =
                 Some result.Value
             else None
 
+        override x.Virts =
+            virtToPhys.Keys |> List.ofSeq
+
 // ----------------------------- Allocation -----------------------------
 
         override x.Allocate address (obj : obj) =

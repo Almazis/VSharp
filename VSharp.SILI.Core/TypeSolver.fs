@@ -235,6 +235,7 @@ module TypeSolver =
     let private generateConstraints (model : model) (state : state) =
         match model with
         | StateModel modelState ->
+            // almazis TODO: allocatedTypes dict is empty in model
             let typeOfAddress addr =
                 if VectorTime.less addr VectorTime.zero then modelState.allocatedTypes.[addr]
                 else state.allocatedTypes.[addr]

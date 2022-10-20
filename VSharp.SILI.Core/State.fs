@@ -18,6 +18,7 @@ type IConcreteMemory =
     abstract TryVirtToPhys : concreteHeapAddress -> obj option
     abstract PhysToVirt : obj -> concreteHeapAddress
     abstract TryPhysToVirt : obj -> concreteHeapAddress option
+    abstract Virts : concreteHeapAddress list
     abstract Allocate : concreteHeapAddress -> obj -> unit
     abstract ReadClassField : concreteHeapAddress -> fieldId -> obj
     abstract ReadArrayIndex : concreteHeapAddress -> int list -> obj

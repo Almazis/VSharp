@@ -160,9 +160,12 @@ module internal Memory =
     let private typeOfConcreteHeapAddress state address =
         if address = VectorTime.zero then typeof<obj>
         else
-            match PersistentDict.find state.allocatedTypes address with
-            | ConcreteType t -> t
-            | MockType _ -> __unreachable__() // Mock types may appear only in models
+            match state.concreteMemory.TryVirtToPhys address with
+            | Some o -> getTypeOfConcrete o
+            | None ->
+                match PersistentDict.find state.allocatedTypes address with
+                | ConcreteType t -> t
+                | MockType _ -> __unreachable__() // Mock types may appear only in models
 
     // TODO: use only mostConcreteTypeOfHeapRef someday
     let rec typeOfHeapLocation state (address : heapAddress) =
@@ -360,7 +363,8 @@ module internal Memory =
                 let t = method.DeclaringType
                 let addr = [-1]
                 let thisRef = HeapRef (ConcreteHeapAddress addr) t
-                state.allocatedTypes <- PersistentDict.add addr (ConcreteType t) state.allocatedTypes
+                state.concreteMemory.Allocate addr (Reflection.createObject t)
+                // state.allocatedTypes <- PersistentDict.add addr (ConcreteType t) state.allocatedTypes
                 state.startingTime <- [-2]
                 (ThisKey method, Some thisRef, t) :: parameters // TODO: incorrect type when ``this'' is Ref to stack
             else parameters

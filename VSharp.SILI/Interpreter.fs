@@ -1146,6 +1146,8 @@ type internal ILInterpreter(isConcolicMode : bool) as this =
                     match cilState.state.model with
                     | StateModel s -> s
                     | _ -> __unreachable__()
+                // modelState.concreteMemory.Allocate thisInModel (Reflection.createObject mock)
+                // almazis TODO: allocatedTypes dict is empty in model
                 modelState.allocatedTypes <- PersistentDict.add thisInModel (MockType mock) modelState.allocatedTypes
                 candidateTypes |> Seq.iter (function
                     | ConcreteType t -> AddConstraint cilState.state !!(Types.TypeIsRef cilState.state t this)
