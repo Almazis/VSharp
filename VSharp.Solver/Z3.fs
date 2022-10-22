@@ -695,6 +695,7 @@ module internal Z3 =
             let subst = Dictionary<ISymbolicConstantSource, term>()
             let stackEntries = Dictionary<stackKey, term ref>()
             let state = {Memory.EmptyState() with complete = true}
+            let cm = state.concreteMemory
             encodingCache.t2e |> Seq.iter (fun kvp ->
                 match kvp.Key with
                 | {term = Constant(_, StructFieldChain(fields, StackReading(key)), t)} as constant ->
@@ -731,15 +732,14 @@ module internal Z3 =
                     (key, Some term, typ))
             Memory.NewStackFrame state None (List.ofSeq frame)
 
-            let cm = state.concreteMemory
+            
             encodingCache.heapAddresses |> Seq.iter (fun kvp ->
                 let typ, _ = kvp.Key
                 let addr = kvp.Value
                 if VectorTime.less addr VectorTime.zero && not <| cm.Contains addr then
                     cm.Allocate addr (Reflection.createObject typ))
-            state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
             encodingCache.heapAddresses.Clear()
-
+            
             let defaultValues = Dictionary<regionSort, term ref>()
             encodingCache.regionConstants |> Seq.iter (fun kvp ->
                 let region, fields = kvp.Key
@@ -780,6 +780,7 @@ module internal Z3 =
                 let constantValue = kvp.Value.Value
                 Memory.FillRegion state constantValue region)
 
+            state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
             state.model <- PrimitiveModel subst
             StateModel state
 

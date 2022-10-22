@@ -364,7 +364,6 @@ module internal Memory =
                 let addr = [-1]
                 let thisRef = HeapRef (ConcreteHeapAddress addr) t
                 state.concreteMemory.Allocate addr (Reflection.createObject t)
-                // state.allocatedTypes <- PersistentDict.add addr (ConcreteType t) state.allocatedTypes
                 state.startingTime <- [-2]
                 (ThisKey method, Some thisRef, t) :: parameters // TODO: incorrect type when ``this'' is Ref to stack
             else parameters
@@ -379,8 +378,16 @@ module internal Memory =
     let allocateType state (typ : Type) =
         assert(not typ.IsAbstract)
         let concreteAddress = freshAddress state
-        assert(not <| PersistentDict.contains concreteAddress state.allocatedTypes)
-        state.allocatedTypes <- PersistentDict.add concreteAddress (ConcreteType typ) state.allocatedTypes
+        match state.model with
+        | StateModel _ ->
+            // symbolyc allocation
+            assert(not <| PersistentDict.contains concreteAddress state.allocatedTypes)
+            state.allocatedTypes <- PersistentDict.add concreteAddress (ConcreteType typ) state.allocatedTypes
+        | PrimitiveModel _ ->
+            // concrete allocation
+            let cm = state.concreteMemory
+            assert(not <| cm.Contains concreteAddress)
+            cm.Allocate concreteAddress (Reflection.createObject typ)
         concreteAddress
 
 // =============== Marshalling/unmarshalling without state changing ===============
