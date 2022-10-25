@@ -236,8 +236,11 @@ module TypeSolver =
         match model with
         | StateModel modelState ->
             // almazis TODO: allocatedTypes dict is empty in model
+            let cm = modelState.concreteMemory
             let typeOfAddress addr =
-                if VectorTime.less addr VectorTime.zero then modelState.allocatedTypes.[addr]
+                if VectorTime.less addr VectorTime.zero then
+                    let obj = cm.VirtToPhys addr
+                    ConcreteType (obj.GetType())
                 else state.allocatedTypes.[addr]
             let mocks = Dictionary<concreteHeapAddress, ITypeMock>()
             let supertypeConstraints = Dictionary<concreteHeapAddress, List<Type>>()
@@ -245,7 +248,7 @@ module TypeSolver =
             let notSupertypeConstraints = Dictionary<concreteHeapAddress, List<Type>>()
             let notSubtypeConstraints = Dictionary<concreteHeapAddress, List<Type>>()
             let addresses = HashSet<concreteHeapAddress>()
-            modelState.allocatedTypes |> PersistentDict.iter (fun (addr, _) ->
+            cm.Virts |> List.iter (fun addr ->
                 addresses.Add(addr) |> ignore
                 Dict.getValueOrUpdate supertypeConstraints addr (fun () ->
                     let list = List<Type>()
