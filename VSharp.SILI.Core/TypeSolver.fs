@@ -314,13 +314,18 @@ module TypeSolver =
             match solverResult with
             | TypeSat(refsTypes, typeParams) ->
                 let refineTypes addr t =
-                    modelState.allocatedTypes <- PersistentDict.add addr t modelState.allocatedTypes
                     match t with
                     | ConcreteType t ->
+                        let cm = modelState.concreteMemory
+                        if cm.Contains addr then
+                            cm.Remove addr
+                        cm.Allocate addr (Reflection.createObject t)
                         if t.IsValueType then
                             let value = makeDefaultValue t
                             modelState.boxedLocations <- PersistentDict.add addr value modelState.boxedLocations
-                    | _ -> ()
+                    | _ ->
+                        modelState.allocatedTypes <- PersistentDict.add addr t modelState.allocatedTypes
+                        ()
                 Seq.iter2 refineTypes addresses refsTypes
                 let classParams, methodParams = List.splitAt typeGenericArguments.Length typeParams
                 Some(Array.ofList classParams, Array.ofList methodParams)
