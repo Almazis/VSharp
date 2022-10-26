@@ -235,7 +235,6 @@ module TypeSolver =
     let private generateConstraints (model : model) (state : state) =
         match model with
         | StateModel modelState ->
-            // almazis TODO: allocatedTypes dict is empty in model
             let cm = modelState.concreteMemory
             let typeOfAddress addr =
                 if VectorTime.less addr VectorTime.zero then
@@ -314,9 +313,9 @@ module TypeSolver =
             match solverResult with
             | TypeSat(refsTypes, typeParams) ->
                 let refineTypes addr t =
+                    let cm = modelState.concreteMemory
                     match t with
                     | ConcreteType t ->
-                        let cm = modelState.concreteMemory
                         if cm.Contains addr then
                             cm.Remove addr
                         cm.Allocate addr (Reflection.createObject t)
@@ -324,6 +323,8 @@ module TypeSolver =
                             let value = makeDefaultValue t
                             modelState.boxedLocations <- PersistentDict.add addr value modelState.boxedLocations
                     | _ ->
+                        if cm.Contains addr then
+                            cm.Remove addr
                         modelState.allocatedTypes <- PersistentDict.add addr t modelState.allocatedTypes
                         ()
                 Seq.iter2 refineTypes addresses refsTypes
