@@ -588,10 +588,6 @@ module internal Z3 =
                 // NOTE: storing most concrete type for string
                 encodingCache.heapAddresses.Remove((charArray, expr)) |> ignore
                 encodingCache.heapAddresses.Add((typ, expr), result.Value)
-                if cm.Contains result.Value then
-                    cm.Remove result.Value
-                if VectorTime.less result.Value VectorTime.zero then
-                    cm.Allocate result.Value (Reflection.createObject typ)
                 result.Value
             elif typ = charArray && checkAndGet (typeof<string>, expr) then result.Value
             else
@@ -599,7 +595,10 @@ module internal Z3 =
                 let addr = [encodingCache.lastSymbolicAddress]
                 encodingCache.heapAddresses.Add((typ, expr), addr)
                 if VectorTime.less addr VectorTime.zero && not <| cm.Contains addr then
-                    cm.Allocate addr (Reflection.createObject typ)
+                    if typ = typeof<string> then
+                        cm.Allocate addr (Reflection.createObject charArray)
+                    else
+                        cm.Allocate addr (Reflection.createObject typ)
                 addr
 
         member private x.DecodeSymbolicTypeAddress (expr : Expr) =
@@ -780,15 +779,29 @@ module internal Z3 =
                     elif arr.IsConst then ()
                     else internalfailf "Unexpected array expression in model: %O" arr
                 parseArray arr)
+
+            state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
+            state.model <- PrimitiveModel subst
+            let sm = StateModel state
+            
             defaultValues |> Seq.iter (fun kvp ->
                 let region = kvp.Key
                 let constantValue = kvp.Value.Value
                 Memory.FillRegion state constantValue region)
+            
+            encodingCache.heapAddresses |> Seq.iter (fun kvp ->
+                let typ, _ = kvp.Key
+                if typ = typeof<string> then
+                    let addr = kvp.Value
+                    let cha = ConcreteHeapAddress addr
+                    // let length : int = ClassField(cha, Reflection.stringLengthField) |> Ref |> Memory.Read state |> unbox
+                    let contents : char array = Array.init 0 (fun i -> ArrayIndex(cha, [MakeNumber i], (typeof<char>, 1, true)) |> Ref |> Memory.Read state |> unbox)
+                    // let content : char array = (cm.VirtToPhys addr) |> unbox
+                    cm.Remove addr
+                    cm.Allocate addr (String(contents) :> obj))
 
             encodingCache.heapAddresses.Clear()
-            state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
-            state.model <- PrimitiveModel subst
-            StateModel state
+            sm
 
 
     let private ctx = new Context()
