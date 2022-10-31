@@ -588,16 +588,17 @@ module internal Z3 =
                 // NOTE: storing most concrete type for string
                 encodingCache.heapAddresses.Remove((charArray, expr)) |> ignore
                 encodingCache.heapAddresses.Add((typ, expr), result.Value)
+                cm.Remove result.Value
                 result.Value
             elif typ = charArray && checkAndGet (typeof<string>, expr) then result.Value
             else
                 encodingCache.lastSymbolicAddress <- encodingCache.lastSymbolicAddress - 1
                 let addr = [encodingCache.lastSymbolicAddress]
                 encodingCache.heapAddresses.Add((typ, expr), addr)
-                if VectorTime.less addr VectorTime.zero && not <| cm.Contains addr then
-                    if typ = typeof<string> then
-                        cm.Allocate addr (Reflection.createObject charArray)
-                    else
+                if VectorTime.less addr VectorTime.zero && not <| cm.Contains addr && typ <> typeof<string> then
+                    // if typ = typeof<string> then
+                        // cm.Allocate addr (Reflection.createObject charArray)
+                    // else
                         cm.Allocate addr (Reflection.createObject typ)
                 addr
 
@@ -760,6 +761,9 @@ module internal Z3 =
                             else
                                 let addr = x.DecodeConcreteHeapAddress cm typeOfLocation arr.Args.[0] |> ConcreteHeapAddress
                                 HeapRef addr typeOfLocation
+                        // let tmp = x.DecodeMemoryKey cm region arr.Args
+                        // let states = Memory.Write state (tmp |> Ref) constantValue 
+                        // assert(states.Length = 1 && states.[0] = state)
                         x.WriteDictOfValueTypes defaultValues region fields region.TypeOfLocation constantValue
                     elif arr.IsDefaultArray then
                         assert(arr.Args.Length = 1)
@@ -778,26 +782,30 @@ module internal Z3 =
                         assert(states.Length = 1 && states.[0] = state)
                     elif arr.IsConst then ()
                     else internalfailf "Unexpected array expression in model: %O" arr
+                    
+                    
                 parseArray arr)
-
+            
             state.startingTime <- [encodingCache.lastSymbolicAddress - 1]
             state.model <- PrimitiveModel subst
             let sm = StateModel state
-            
             defaultValues |> Seq.iter (fun kvp ->
                 let region = kvp.Key
+                let h = encodingCache.heapAddresses
                 let constantValue = kvp.Value.Value
                 Memory.FillRegion state constantValue region)
             
             encodingCache.heapAddresses |> Seq.iter (fun kvp ->
                 let typ, _ = kvp.Key
                 if typ = typeof<string> then
+                    let unboxConcrete = function
+                        | {term = Concrete(v, _)} -> v |> unbox
+                        | _ -> __unreachable__()
                     let addr = kvp.Value
                     let cha = ConcreteHeapAddress addr
-                    // let length : int = ClassField(cha, Reflection.stringLengthField) |> Ref |> Memory.Read state |> unbox
-                    let contents : char array = Array.init 0 (fun i -> ArrayIndex(cha, [MakeNumber i], (typeof<char>, 1, true)) |> Ref |> Memory.Read state |> unbox)
+                    let length : int = ClassField(cha, Reflection.stringLengthField) |> Ref |> Memory.Read state |> unboxConcrete
+                    let contents : char array = Array.init length (fun i -> ArrayIndex(cha, [MakeNumber i], (typeof<char>, 1, true)) |> Ref |> Memory.Read state |> unboxConcrete)
                     // let content : char array = (cm.VirtToPhys addr) |> unbox
-                    cm.Remove addr
                     cm.Allocate addr (String(contents) :> obj))
 
             encodingCache.heapAddresses.Clear()
