@@ -317,8 +317,10 @@ module TypeSolver =
                     match t with
                     | ConcreteType t ->
                         if cm.Contains addr then
-                            cm.Remove addr
-                        cm.Allocate addr (Reflection.createObject t)
+                            let t1 = TypeUtils.getTypeOfConcrete (cm.VirtToPhys addr)
+                            if t <> t1 then
+                                cm.Remove addr
+                                cm.Allocate addr (Reflection.createObject t)
                         if t.IsValueType then
                             let value = makeDefaultValue t
                             modelState.boxedLocations <- PersistentDict.add addr value modelState.boxedLocations

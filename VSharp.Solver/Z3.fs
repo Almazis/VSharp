@@ -798,7 +798,8 @@ module internal Z3 =
             encodingCache.heapAddresses |> Seq.iter (fun kvp ->
                 let typ, _ = kvp.Key
                 if typ = typeof<string> then
-                    let unboxConcrete = function
+                    let unboxConcrete term =
+                        match sm.Complete term with
                         | {term = Concrete(v, _)} -> v |> unbox
                         | _ -> __unreachable__()
                     let addr = kvp.Value
