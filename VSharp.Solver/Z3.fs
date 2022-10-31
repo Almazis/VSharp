@@ -796,18 +796,31 @@ module internal Z3 =
                 Memory.FillRegion state constantValue region)
             
             encodingCache.heapAddresses |> Seq.iter (fun kvp ->
+                let unboxConcrete term =
+                    match sm.Complete term with
+                    | {term = Concrete(v, _)} -> v |> unbox
+                    | _ -> __unreachable__()
                 let typ, _ = kvp.Key
+                let addr = kvp.Value
+                let cha = ConcreteHeapAddress addr
                 if typ = typeof<string> then
-                    let unboxConcrete term =
-                        match sm.Complete term with
-                        | {term = Concrete(v, _)} -> v |> unbox
-                        | _ -> __unreachable__()
-                    let addr = kvp.Value
-                    let cha = ConcreteHeapAddress addr
                     let length : int = ClassField(cha, Reflection.stringLengthField) |> Ref |> Memory.Read state |> unboxConcrete
                     let contents : char array = Array.init length (fun i -> ArrayIndex(cha, [MakeNumber i], (typeof<char>, 1, true)) |> Ref |> Memory.Read state |> unboxConcrete)
                     // let content : char array = (cm.VirtToPhys addr) |> unbox
-                    cm.Allocate addr (String(contents) :> obj))
+                    cm.Allocate addr (String(contents) :> obj)
+                else
+                    match cm.TryVirtToPhys addr with
+                    | Some o ->
+                        if o = (Reflection.createObject typ) then
+                            // cm.Remove addr
+                            let fields = typ |> Reflection.fieldsOf false |> Array.map (fun (field, _) ->
+                                    ClassField(cha, field) |> Ref |> Memory.Read state |> unboxConcrete)
+                            // tryTermToObj
+
+                            ()
+                    | None -> ()
+                    
+                    )
 
             encodingCache.heapAddresses.Clear()
             sm

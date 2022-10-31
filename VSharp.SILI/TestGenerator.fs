@@ -114,7 +114,6 @@ module TestGenerator =
                 let cm = modelState.concreteMemory
                 match cm.TryVirtToPhys addr with
                 | Some o ->
-                    // ?? (encodeTypeMock model state indices mockCache test >> test.AllocateMockObject)
                     test.MemoryGraph.Encode o
                 | None -> __unreachable__()
                     // let eval address =

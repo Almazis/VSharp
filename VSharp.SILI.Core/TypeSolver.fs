@@ -321,9 +321,9 @@ module TypeSolver =
                             if t <> t1 then
                                 cm.Remove addr
                                 cm.Allocate addr (Reflection.createObject t)
-                        if t.IsValueType then
-                            let value = makeDefaultValue t
-                            modelState.boxedLocations <- PersistentDict.add addr value modelState.boxedLocations
+                        else if t.IsValueType then
+                            let value = Reflection.createObject t
+                            cm.Allocate addr value
                     | _ ->
                         if cm.Contains addr then
                             cm.Remove addr
