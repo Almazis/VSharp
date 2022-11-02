@@ -764,14 +764,25 @@ module internal Z3 =
                 
                 match typ with
                 | ArrayType(elemType, dim) ->
-                    let arrayType =
+                    let arrayType, rank =
                         match dim with
-                        | Vector -> (elemType, 1, true)
-                        | ConcreteDimension rank -> (elemType, rank, false)
+                        | Vector -> (elemType, 1, true), 1
+                        | ConcreteDimension rank -> (elemType, rank, false), rank
                         | SymbolicDimension -> __notImplemented__()            
                     let defIndex = defaultValues.GetValueOrDefault (ArrayIndexSort arrayType)
                     let defLen = defaultValues.GetValueOrDefault (ArrayLengthSort arrayType)
                     let defBound = defaultValues.GetValueOrDefault (ArrayLowerBoundSort arrayType)
+                    List.init rank (fun i -> ArrayLength(addr, MakeNumber i, arrayType)) |>
+                         List.iter (fun a ->
+                             let states = Memory.Write state (Ref a) defLen.Value
+                             assert(states.Length = 1 && states.[0] = state)
+                        )
+                    List.init rank (fun i -> ArrayLowerBound(addr, MakeNumber i, arrayType)) |>
+                        List.iter (fun a ->
+                            let states = Memory.Write state (Ref a) defBound.Value
+                            assert(states.Length = 1 && states.[0] = state)
+                        )
+                    
                     ()
                 | _ ->
                     defaultValues |> Seq.iter (fun kv ->
