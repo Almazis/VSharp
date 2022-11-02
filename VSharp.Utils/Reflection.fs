@@ -204,7 +204,7 @@ module public Reflection =
         match t with
         | _ when t = typeof<String> -> String.Empty :> obj
         | _ when TypeUtils.isNullable t -> null
-        | _ when t.IsArray -> Array.CreateInstance(typeof<obj>, 1)
+        | _ when TypeUtils.isArrayType t -> Array.CreateInstance(TypeUtils.elementType t, 1)
         | _ -> System.Runtime.Serialization.FormatterServices.GetUninitializedObject t
 
     let defaultOf (t : Type) =
