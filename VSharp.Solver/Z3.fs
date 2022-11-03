@@ -737,21 +737,42 @@ module internal Z3 =
             encodingCache.regionConstants |> Seq.iter (fun kvp ->
                 let constant = kvp.Value
                 let arr = m.Eval(constant, false)
-                if arr.IsConstantArray then
-                        let region, fields = kvp.Key
-                        let typeOfLocation =
-                            if fields.IsEmpty then region.TypeOfLocation
-                            else fields.Head.typ
+                let region, fields = kvp.Key
+                let typeOfLocation =
+                    if fields.IsEmpty then region.TypeOfLocation
+                    else fields.Head.typ
+                let rec parseArray (arr : Expr)  =
+                    if arr.IsConstantArray then
                         assert(arr.Args.Length = 1)
                         let constantValue =
                             if Types.IsValueType typeOfLocation then x.Decode cm typeOfLocation arr.Args.[0]
                             else
                                 let addr = x.DecodeConcreteHeapAddress cm typeOfLocation arr.Args.[0]
                                 if VectorTime.less addr VectorTime.zero &&
-                                   not <| cm.Contains addr && typeOfLocation <> typeof<string> then
+                                    not <| cm.Contains addr && typeOfLocation <> typeof<string> then
                                     cm.Allocate addr (Reflection.createObject typeOfLocation)
                                 HeapRef (addr |> ConcreteHeapAddress) typeOfLocation
                         x.WriteDictOfValueTypes defaultValues region fields region.TypeOfLocation constantValue
+                    else if arr.IsStore then
+                        assert(arr.Args.Length >= 3)
+                        parseArray arr.Args.[0]
+                        let addr = x.DecodeMemoryKey cm region arr.Args.[1..arr.Args.Length - 2]
+                        match addr with
+                        | ArrayLength _
+                        | ArrayLowerBound _
+                        | ArrayIndex _ ->
+                            let value =
+                                if Types.IsValueType typeOfLocation then
+                                    x.Decode cm typeOfLocation (Array.last arr.Args)
+                                else
+                                    let address = arr.Args |> Array.last |> x.DecodeConcreteHeapAddress cm typeOfLocation |> ConcreteHeapAddress
+                                    HeapRef address typeOfLocation
+                            let states = Memory.Write state (Ref addr) value
+                            assert(states.Length = 1 && states.[0] = state)
+                        | _ -> ()
+                    else
+                        ()
+                parseArray arr
             )
             
             encodingCache.heapAddresses |> Seq.iter (fun kvp ->
@@ -769,11 +790,14 @@ module internal Z3 =
                         | Vector -> (elemType, 1, true), 1
                         | ConcreteDimension rank -> (elemType, rank, false), rank
                         | SymbolicDimension -> __notImplemented__()            
-                    let defIndex = defaultValues.GetValueOrDefault (ArrayIndexSort arrayType)
+
+                    let defLen = Memory.Read (Ref ArrayLength(addr, dimension, elemType))
                     let defLen = defaultValues.GetValueOrDefault (ArrayLengthSort arrayType)
                     let defBound = defaultValues.GetValueOrDefault (ArrayLowerBoundSort arrayType)
-                    List.init rank (fun i -> ArrayLength(addr, MakeNumber i, arrayType)) |>
-                         List.iter (fun a ->
+                    List.init rank (fun i -> ArrayLength(addr, MakeNumber i, arrayType),
+                                             ArrayIndex(addr, MakeNumber i, arrayType))
+                         |> List.iter (fun l, i ->
+                             List.init()
                              let states = Memory.Write state (Ref a) defLen.Value
                              assert(states.Length = 1 && states.[0] = state)
                         )
