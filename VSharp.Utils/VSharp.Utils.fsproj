@@ -40,6 +40,7 @@
         <Compile Include="FileSystem.fs" />
         <Compile Include="Mocking.fs" />
         <Compile Include="MemoryGraph.fs" />
+        <Compile Include="ExternMocking.fs" />
         <Compile Include="UnitTest.fs" />
         <Compile Include="UnitTests.fs" />
         <Compile Include="TestResultsChecker.fs" />
@@ -51,6 +52,7 @@
       <PackageReference Include="FSharpx.Collections" Version="2.0.0" />
       <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="3.0.0" />
       <PackageReference Include="FSharp.Core" Version="7.0.0" />
+      <PackageReference Include="MonoMod.RuntimeDetour" Version="22.7.31.1" />
     </ItemGroup>
 
     <ItemGroup>
