@@ -82,5 +82,13 @@ namespace IntegrationTests
 
         [DllImport("libc", EntryPoint = "rand", CallingConvention = CallingConvention.Cdecl)]
         public static extern int libc_rand();
+
+        [TestSvm]
+        public static int dotnetRand()
+        {
+            var rand = new Random();
+
+            return rand.Next(1000);
+        }
     }
 }
