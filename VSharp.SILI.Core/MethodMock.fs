@@ -26,6 +26,7 @@ with
 and MethodMock(method : IMethod, mockingType : MockingType) =
     let mutable callIndex = 0
     let callResults = ResizeArray<term>()
+    let outResults = ResizeArray<term list>()
 
     member x.Method : IMethod = method
 
@@ -43,20 +44,37 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
 
         override x.MockingType = mockingType
 
-        override x.Call this args =
-            let returnType = method.ReturnType
-            if returnType = typeof<Void> then
-                internalfailf "Mocked procedures cannot be called"
-            let src : functionResultConstantSource = {
-                mock = x
-                callIndex = callIndex
-                this = this
-                args = args
-            }
-            let result = Memory.makeSymbolicValue src (toString src) returnType
-            callIndex <- callIndex + 1
-            callResults.Add result
-            result
+        override x.Call state this args =
+             let genSymbolycVal retType =
+                 let src : functionResultConstantSource = {
+                     mock = x
+                     callIndex = callIndex
+                     this = this
+                     args = args
+                 }
+                 Memory.makeSymbolicValue src (toString src) retType
+ 
+             let mParams = method.Parameters |> Array.toList
+
+             let resState, outParams =
+                 let genOutParam (s : state * term list) (p : ParameterInfo) (arg : term) =
+                     if p.IsOut then
+                         let newVal = genSymbolycVal p.ParameterType
+                         Memory.write Memory.emptyReporter (fst s) arg newVal, newVal :: (snd s)
+                     else
+                         s
+ 
+                 List.fold2 genOutParam (state, List.empty) mParams args
+ 
+             outResults.Add(outParams)
+ 
+             if method.ReturnType <> typeof<Void> then
+                 let result = genSymbolycVal method.ReturnType
+                 callIndex <- callIndex + 1
+                 callResults.Add result
+                 Some result
+             else
+                 None
 
         override x.GetImplementationClauses() = callResults.ToArray()
 
@@ -90,5 +108,5 @@ module internal MethodMocking =
         let mock = mockMethod state method mockingType
         // mocked procedures' calls are ignored
         if method.ReturnType <> typeof<Void> then
-            mock.Call this args |> Some
+            mock.Call state this args |> Some
         else None

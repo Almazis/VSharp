@@ -51,17 +51,6 @@ type IConcreteMemory =
     abstract CopyCharArrayToStringLen : concreteHeapAddress -> concreteHeapAddress -> int -> unit
     abstract Remove : concreteHeapAddress -> unit
 
-type MockingType =
-    | Default
-    | Extern
-
-type IMethodMock =
-    abstract BaseMethod : MethodInfo
-    abstract MockingType : MockingType
-    abstract Call : term option -> term list -> term
-    abstract GetImplementationClauses : unit -> term array
-    abstract Copy : unit -> IMethodMock
-
 // TODO: is it good idea to add new constructor for recognizing cilStates that construct RuntimeExceptions?
 type exceptionRegister =
     | Unhandled of term * bool * string // Exception term * is runtime exception * stack trace
@@ -148,6 +137,17 @@ and IErrorReporter =
     abstract ConfigureState : state -> unit
     abstract ReportError : string -> term -> bool
     abstract ReportFatalError : string -> term -> bool
+
+and MockingType =
+    | Default
+    | Extern
+
+and IMethodMock =
+    abstract BaseMethod : MethodInfo
+    abstract MockingType : MockingType
+    abstract Call : state -> term option -> term list -> term option
+    abstract GetImplementationClauses : unit -> term array
+    abstract Copy : unit -> IMethodMock
 
 and
     [<ReferenceEquality>]
