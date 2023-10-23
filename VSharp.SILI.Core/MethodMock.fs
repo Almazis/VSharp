@@ -45,36 +45,42 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
         override x.MockingType = mockingType
 
         override x.Call state this args =
-             let genSymbolycVal retType =
-                 let src : functionResultConstantSource = {
-                     mock = x
-                     callIndex = callIndex
-                     this = this
-                     args = args
-                 }
-                 Memory.makeSymbolicValue src (toString src) retType
- 
-             let mParams = method.Parameters |> Array.toList
+            let genSymbolycVal retType =
+                let src : functionResultConstantSource = {
+                    mock = x
+                    callIndex = callIndex
+                    this = this
+                    args = args
+                }
+                Memory.makeSymbolicValue src (toString src) retType
 
-             let resState, outParams =
-                 let genOutParam (s : state * term list) (p : ParameterInfo) (arg : term) =
-                     if p.IsOut then
-                         let newVal = genSymbolycVal p.ParameterType
-                         Memory.write Memory.emptyReporter (fst s) arg newVal, newVal :: (snd s)
-                     else
-                         s
- 
-                 List.fold2 genOutParam (state, List.empty) mParams args
- 
-             outResults.Add(outParams)
- 
-             if method.ReturnType <> typeof<Void> then
-                 let result = genSymbolycVal method.ReturnType
-                 callIndex <- callIndex + 1
-                 callResults.Add result
-                 Some result
-             else
-                 None
+            let mParams = method.Parameters |> Array.toList
+            let resState =
+                if List.exists (fun (p : ParameterInfo) -> p.IsOut) mParams then
+                // if List.exists (fun (p : ParameterInfo) -> p.IsByRef) mParams then
+                    let resState, outParams =
+                        let genOutParam (s : state * term list) (p : ParameterInfo) (arg : term) =
+                            if p.IsOut then
+                                let newVal = genSymbolycVal p.ParameterType
+                                Memory.write Memory.emptyReporter (fst s) arg newVal, newVal :: (snd s)
+                            else
+                                s
+                        List.fold2 genOutParam (state, List.empty) mParams args
+                    outResults.Add(outParams)
+                    resState
+                else
+                    state
+
+            let resTerm =
+                if method.ReturnType <> typeof<Void> then
+                    let result = genSymbolycVal method.ReturnType
+                    callIndex <- callIndex + 1
+                    callResults.Add result
+                    Some result
+                else
+                    None
+
+            resState, resTerm
 
         override x.GetImplementationClauses() = callResults.ToArray()
 
@@ -91,7 +97,7 @@ module internal MethodMocking =
         interface IMethodMock with
             override x.BaseMethod = empty()
             override x.MockingType = empty()
-            override x.Call _ _ = empty()
+            override x.Call _ _ _ = empty()
             override x.GetImplementationClauses() = empty()
             override x.Copy() = empty()
 
@@ -107,6 +113,4 @@ module internal MethodMocking =
     let mockAndCall state method this args mockingType =
         let mock = mockMethod state method mockingType
         // mocked procedures' calls are ignored
-        if method.ReturnType <> typeof<Void> then
-            mock.Call state this args |> Some
-        else None
+        mock.Call state this args
