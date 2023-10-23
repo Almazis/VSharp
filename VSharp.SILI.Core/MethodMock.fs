@@ -56,11 +56,11 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
 
             let mParams = method.Parameters |> Array.toList
             let resState =
-                if List.exists (fun (p : ParameterInfo) -> p.IsOut) mParams then
+                if List.exists (fun (p : ParameterInfo) -> p.ParameterType.IsPointer) mParams then
                 // if List.exists (fun (p : ParameterInfo) -> p.IsByRef) mParams then
                     let resState, outParams =
                         let genOutParam (s : state * term list) (p : ParameterInfo) (arg : term) =
-                            if p.IsOut then
+                            if p.ParameterType.IsPointer then
                                 let newVal = genSymbolycVal p.ParameterType
                                 Memory.write Memory.emptyReporter (fst s) arg newVal, newVal :: (snd s)
                             else
