@@ -117,6 +117,11 @@ public interface IEnumPtrMock
     unsafe MockEnum* Get();
 }
 
+public interface IOutMock
+{
+    void Get(out int i);
+}
+
 [TestSvmFixture]
 public class Mocking
 {
@@ -390,5 +395,14 @@ public class Mocking
         }
 
         return 2;
+    }
+    
+    [TestSvm]
+    public unsafe int OutMock(IOutMock mock)
+    {
+        var i = 322;
+        mock.Get(out i);
+
+        return i;
     }
 }

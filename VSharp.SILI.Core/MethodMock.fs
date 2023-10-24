@@ -56,20 +56,34 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
 
             let mParams = method.Parameters |> Array.toList
             let resState =
-                if List.exists (fun (p : ParameterInfo) -> p.ParameterType.IsPointer) mParams then
-                // if List.exists (fun (p : ParameterInfo) -> p.IsByRef) mParams then
+                // if List.exists (fun (p : ParameterInfo) -> p.ParameterType.IsPointer) mParams then
+                if List.exists (fun (p : ParameterInfo) -> p.IsOut) mParams then
                     let resState, outParams =
                         let genOutParam (s : state * term list) (p : ParameterInfo) (arg : term) =
-                            if p.ParameterType.IsPointer then
-                                let newVal = genSymbolycVal p.ParameterType
+                            if p.IsOut then
+                            // if p.ParameterType.IsPointer then
+                                let tVal = typeOfRef arg
+                                // let arr = Array.CreateInstance tVal 1
+                                let newVal = genSymbolycVal tVal
                                 Memory.write Memory.emptyReporter (fst s) arg newVal, newVal :: (snd s)
                             else
                                 s
                         List.fold2 genOutParam (state, List.empty) mParams args
                     outResults.Add(outParams)
-                    resState
+                    Some resState
                 else
-                    state
+                    None
+
+            let reads =
+                match resState with
+                | Some s ->
+                    let mapper (p : ParameterInfo) (a : term) =
+                        if p.ParameterType.IsPointer then
+                            Memory.read Memory.emptyReporter s a
+                        else
+                            a
+                    List.map2 mapper mParams args
+                | None -> []
 
             let resTerm =
                 if method.ReturnType <> typeof<Void> then
