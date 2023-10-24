@@ -273,7 +273,7 @@ module TestGenerator =
         let extMock = extMockRepr.Encode test.GetPatchId methodMock.BaseMethod clauses
         test.AddExternMock extMock
 
-    let private modelState2test (test : UnitTest) suite indices mockCache (m : Method) model modelState (state : state) =
+    let private modelState2test (test : UnitTest) suite indices mockCache (m : Method) (model : model) modelState (state : state) =
         match SolveGenericMethodParameters state.typeStorage m with
         | None -> None
         | Some(classParams, methodParams) ->
@@ -283,6 +283,9 @@ module TestGenerator =
                 match mock.MockingType with
                 | Default ->
                     let values = mock.GetImplementationClauses()
+                    let outsDebug =
+                        let eval = model.Eval >> term2obj model state indices mockCache implementations test
+                        mock.GetOutClauses() |> Array.map (Array.map eval)
                     implementations.Add(mock.BaseMethod, values)
                 | Extern ->
                     encodeExternMock model state indices mockCache implementations test mock

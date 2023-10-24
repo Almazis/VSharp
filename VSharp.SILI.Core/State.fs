@@ -147,6 +147,7 @@ and IMethodMock =
     abstract MockingType : MockingType
     abstract Call : state -> term option -> term list -> state option * term option
     abstract GetImplementationClauses : unit -> term array
+    abstract GetOutClauses : unit -> term array array
     abstract Copy : unit -> IMethodMock
 
 and

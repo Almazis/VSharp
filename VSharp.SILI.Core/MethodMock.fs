@@ -98,6 +98,7 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
 
         override x.GetImplementationClauses() = callResults.ToArray()
 
+        override x.GetOutClauses() = outResults.ToArray() |> Array.map List.toArray
         override x.Copy() =
             let result = MethodMock(method, mockingType)
             result.SetIndex callIndex
@@ -113,6 +114,7 @@ module internal MethodMocking =
             override x.MockingType = empty()
             override x.Call _ _ _ = empty()
             override x.GetImplementationClauses() = empty()
+            override x.GetOutClauses() = empty()
             override x.Copy() = empty()
 
     let private mockMethod state method mockingType =

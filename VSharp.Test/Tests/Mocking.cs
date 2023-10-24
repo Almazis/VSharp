@@ -398,7 +398,7 @@ public class Mocking
     }
     
     [TestSvm]
-    public unsafe int OutMock(IOutMock mock)
+    public int OutMock(IOutMock mock)
     {
         var i = 322;
         mock.Get(out i);
