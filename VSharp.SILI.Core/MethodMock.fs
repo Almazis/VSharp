@@ -65,6 +65,7 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
                                 let tVal = typeOfRef arg
                                 // let arr = Array.CreateInstance tVal 1
                                 let newVal = genSymbolycVal tVal
+                                callIndex <- callIndex + 1
                                 Memory.write Memory.emptyReporter (fst s) arg newVal, newVal :: (snd s)
                             else
                                 s

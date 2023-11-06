@@ -5,30 +5,28 @@ open System.Collections.Generic
 open System.Diagnostics.CodeAnalysis
 open System.Reflection
 open System.Reflection.Emit
+open System.Reflection.Metadata
 open Microsoft.FSharp.Collections
 
 module Mocking =
 
     exception UnexpectedMockCallException of string
 
-    let storageFieldName (method : MethodInfo) = $"{method.Name}{method.MethodHandle.Value}_<Storage>"
-    let counterFieldName (method : MethodInfo) = $"{method.Name}{method.MethodHandle.Value}_<Counter>"
+    let storageFieldName (method : MethodInfo) (paramName : string) = $"{method.Name}{method.MethodHandle.Value}{paramName}_<Storage>"
+    let counterFieldName (method : MethodInfo) (paramName : string) = $"{method.Name}{method.MethodHandle.Value}{paramName}_<Counter>"
 
     // TODO: properties!
-    type Method(baseMethod : MethodInfo, clausesCount : int, outValuesCount : int) =
+    type Method(baseMethod : MethodInfo, clausesCount : int, callsCount : int) =
         let returnValues : obj[] = Array.zeroCreate clausesCount
-        let outValues : obj[,] = Array2D.zeroCreate clausesCount outValuesCount
+        let outValuesCount = baseMethod.GetParameters() |> Array.filter (fun p -> p.IsOut) |> Array.length
+        let outValues : obj[][] = Array.create callsCount (Array.zeroCreate outValuesCount)
         let name = baseMethod.Name
-        let storageFieldName = storageFieldName baseMethod
-        let counterFieldName = counterFieldName baseMethod
+        let outStorageFieldName n = storageFieldName baseMethod n
+        let outCounterFieldName n = counterFieldName baseMethod n
+        let storageFieldName = storageFieldName baseMethod ""
+        let counterFieldName = counterFieldName baseMethod ""
         let mutable returnType = baseMethod.ReturnType
-
-        do
-            let hasOutParameter =
-                baseMethod.GetParameters()
-                |> Array.exists (fun x -> x.IsOut)
-
-            if hasOutParameter then internalfail "Method with out parameters mocking not implemented"
+        let hasOutParameter = baseMethod.GetParameters() |> Array.exists (fun x -> x.IsOut)
 
         member x.BaseMethod = baseMethod
         member x.ReturnValues = returnValues
@@ -97,6 +95,26 @@ module Mocking =
                 typeBuilder.DefineMethodOverride(methodBuilder, baseMethod)
 
             let ilGenerator = methodBuilder.GetILGenerator()
+
+            if hasOutParameter then
+                let outParams = baseMethod.GetParameters() |> Array.filter (fun p -> p.IsOut)
+                let genOutParamIL (p : ParameterInfo) =
+                    let outType = p.ParameterType.GetElementType()
+                    let storageName = outStorageFieldName p.Name
+                    let storageField = typeBuilder.DefineField(storageName, outType, FieldAttributes.Private ||| FieldAttributes.Static)
+                    let counterName = outCounterFieldName p.Name
+                    let counterField = typeBuilder.DefineField(counterName, typeof<int>, FieldAttributes.Private ||| FieldAttributes.Static)
+                    
+                    ilGenerator.Emit(OpCodes.Ldarg, p.Position)
+                    ilGenerator.Emit(OpCodes.Ldsfld, storageField)
+                    ilGenerator.Emit(OpCodes.Ldsfld, counterField)
+                    ilGenerator.Emit(OpCodes.Ldelem, outType)
+
+                    ilGenerator.Emit(OpCodes.Ldsfld, counterField)
+                    ilGenerator.Emit(OpCodes.Ldc_I4_1)
+                    ilGenerator.Emit(OpCodes.Add)
+                    ilGenerator.Emit(OpCodes.Stsfld, counterField)
+                outParams |> Array.iter genOutParamIL
 
             if returnType <> typeof<Void> then
                 let storageField = typeBuilder.DefineField(storageFieldName, returnType.MakeArrayType(), FieldAttributes.Private ||| FieldAttributes.Static)
