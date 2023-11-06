@@ -98,7 +98,8 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
 
         override x.GetImplementationClauses() = callResults.ToArray()
 
-        override x.GetOutClauses() = outResults.ToArray() |> Array.map List.toArray
+        override x.GetOutClauses() =
+            outResults.ToArray() |> Array.map List.toArray
         override x.Copy() =
             let result = MethodMock(method, mockingType)
             result.SetIndex callIndex

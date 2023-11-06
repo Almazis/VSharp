@@ -15,8 +15,9 @@ module Mocking =
     let counterFieldName (method : MethodInfo) = $"{method.Name}{method.MethodHandle.Value}_<Counter>"
 
     // TODO: properties!
-    type Method(baseMethod : MethodInfo, clausesCount : int) =
+    type Method(baseMethod : MethodInfo, clausesCount : int, outValuesCount : int) =
         let returnValues : obj[] = Array.zeroCreate clausesCount
+        let outValues : obj[,] = Array2D.zeroCreate clausesCount outValuesCount
         let name = baseMethod.Name
         let storageFieldName = storageFieldName baseMethod
         let counterFieldName = counterFieldName baseMethod
@@ -31,10 +32,14 @@ module Mocking =
 
         member x.BaseMethod = baseMethod
         member x.ReturnValues = returnValues
+        member x.OutValues = outValues
 
         member x.SetClauses (clauses : obj[]) =
             clauses |> Array.iteri (fun i o -> returnValues[i] <- o)
 
+        member x.SetOuts (clauses : obj[][]) =
+            clauses |> Array.iteri (fun i a -> Array.iteri (fun j o -> outValues[i][j] <- o) a)
+        
         member x.InitializeType (typ : Type) =
             if returnType <> typeof<Void> then
                 let field = typ.GetField(storageFieldName, BindingFlags.NonPublic ||| BindingFlags.Static)
@@ -135,16 +140,18 @@ module Mocking =
         let interfaces = ResizeArray<System.Type>()
 
         let mutable rawClauses = null
+        let mutable rawOutClauses = null
 
         static member Empty = Type(String.Empty)
 
-        static member Deserialize name baseClass interfaces baseMethods methodImplementations =
+        static member Deserialize name baseClass interfaces baseMethods methodImplementations outImplementations =
             let mockedType = Type(name)
             mockedType.BaseClass <- baseClass
             mockedType.Interfaces <- interfaces
-            let deserializeMethod (m : MethodInfo) (c : obj[]) = Method(m, c.Length)
-            mockedType.MethodMocks <- Array.map2 deserializeMethod baseMethods methodImplementations
+            let deserializeMethod (m : MethodInfo) (c : obj[]) (o : obj[][]) = Method(m, c.Length, o.Length)
+            mockedType.MethodMocks <- Array.map3 deserializeMethod baseMethods methodImplementations outImplementations
             mockedType.MethodMocksClauses <- methodImplementations
+            mockedType.OutMocksClauses <- outImplementations
             mockedType
 
         member private x.AddInterfaceMethods (t : System.Type) =
@@ -155,7 +162,8 @@ module Mocking =
                 |> Seq.distinct
                 |> Seq.collect (fun i -> i.GetMethods())
             for m in interfaceMethods do
-                methodMocksCache.TryAdd(m, Method(m, 0)) |> ignore
+                // let outsCount = m.GetParameters() |> Array.filter (fun p -> p.IsOut) |> Array.length 
+                methodMocksCache.TryAdd(m, Method(m, 0, 0)) |> ignore
 
         member private x.AddClassMethods (t : System.Type) =
             assert(not (t.IsInterface || t.IsValueType || t.IsArray || t.IsPointer || t.IsByRef))
@@ -169,7 +177,7 @@ module Mocking =
                 m.IsAbstract || isDelegate && m.Name = "Invoke"
             let methodsToImplement = superClassMethods |> Array.filter needToMock
             for m in methodsToImplement do
-                methodMocksCache.TryAdd(m, Method(m, 0)) |> ignore
+                methodMocksCache.TryAdd(m, Method(m, 0, 0)) |> ignore
 
         member x.AddSuperType(t : System.Type) =
             if t.IsValueType || t.IsArray || t.IsPointer || t.IsByRef then
@@ -192,10 +200,11 @@ module Mocking =
                       with base class {baseClass.FullName}! Note that multiple inheritance is prohibited."
                 raise (ArgumentException(message))
 
-        member x.AddMethod(m : MethodInfo, returnValues : obj[]) =
+        member x.AddMethod(m : MethodInfo, returnValues : obj[], outResults : obj[][]) =
             if calledMethods.Contains m |> not then
-                let methodMock = Method(m, returnValues.Length)
+                let methodMock = Method(m, returnValues.Length, outResults.Length)
                 methodMock.SetClauses returnValues
+                methodMock.SetOuts outResults
                 calledMethods.Add m
                 let methodType = m.ReflectedType
                 if methodType.IsInterface && not (interfaces.Contains methodType) then
@@ -226,6 +235,10 @@ module Mocking =
         member x.MethodMocksClauses
             with private get() = rawClauses
             and private set clauses = rawClauses <- clauses
+
+        member x.OutMocksClauses
+            with private get() = rawOutClauses
+            and private set clauses = rawOutClauses <- clauses
 
         member x.Build(moduleBuilder : ModuleBuilder) =
             let typeBuilder = moduleBuilder.DefineType(name, TypeAttributes.Public)

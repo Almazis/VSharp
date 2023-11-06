@@ -248,7 +248,7 @@ module TestGenerator =
             let encodeMock = encodeTypeMock model state indices mockCache implementations test
             obj2test eval arr2Obj indices encodeMock test address typ
 
-    and private encodeTypeMock (model : model) state indices (mockCache : Dictionary<ITypeMock, Mocking.Type>) (implementations : IDictionary<MethodInfo, term[]>) (test : UnitTest) mock : Mocking.Type =
+    and private encodeTypeMock (model : model) state indices (mockCache : Dictionary<ITypeMock, Mocking.Type>) (implementations : IDictionary<MethodInfo, term[] * term[][]>) (test : UnitTest) mock : Mocking.Type =
         let mockedType = ref Mocking.Type.Empty
         if mockCache.TryGetValue(mock, mockedType) then mockedType.Value
         else
@@ -259,12 +259,13 @@ module TestGenerator =
                 freshMock.AddSuperType t
                 for methodMock in implementations do
                     let method = methodMock.Key
-                    let values = methodMock.Value
+                    let values = fst methodMock.Value
+                    let outParams = snd methodMock.Value
                     let methodType = method.ReflectedType
                     let mockedBaseInterface() =
                         methodType.IsInterface && Seq.contains methodType (TypeUtils.getBaseInterfaces t)
                     if methodType = t || mockedBaseInterface() then
-                        freshMock.AddMethod(method, Array.map eval values)
+                        freshMock.AddMethod(method, Array.map eval values, Array.map (Array.map eval) outParams)
             freshMock
 
     let encodeExternMock (model : model) state indices mockCache implementations test (methodMock : IMethodMock) =
@@ -277,16 +278,13 @@ module TestGenerator =
         match SolveGenericMethodParameters state.typeStorage m with
         | None -> None
         | Some(classParams, methodParams) ->
-            let implementations = Dictionary<MethodInfo, term[]>()
+            let implementations = Dictionary<MethodInfo, term[] * term[][]>()
             for entry in state.methodMocks do
                 let mock = entry.Value
                 match mock.MockingType with
                 | Default ->
                     let values = mock.GetImplementationClauses()
-                    let outsDebug =
-                        let eval = model.Eval >> term2obj model state indices mockCache implementations test
-                        mock.GetOutClauses() |> Array.map (Array.map eval)
-                    implementations.Add(mock.BaseMethod, values)
+                    implementations.Add(mock.BaseMethod, (values, mock.GetOutClauses()))
                 | Extern ->
                     encodeExternMock model state indices mockCache implementations test mock
 
