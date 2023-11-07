@@ -36,6 +36,10 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
         callResults.Clear()
         callResults.AddRange clauses
 
+    member private x.SetOuts (clauses : ResizeArray<term list>) =
+        outResults.Clear()
+        outResults.AddRange clauses
+
     interface IMethodMock with
         override x.BaseMethod =
             match method.MethodBase with
@@ -101,10 +105,12 @@ and MethodMock(method : IMethod, mockingType : MockingType) =
 
         override x.GetOutClauses() =
             outResults.ToArray() |> Array.map List.toArray
+
         override x.Copy() =
             let result = MethodMock(method, mockingType)
             result.SetIndex callIndex
             result.SetClauses callResults
+            result.SetOuts outResults
             result
 
 module internal MethodMocking =
