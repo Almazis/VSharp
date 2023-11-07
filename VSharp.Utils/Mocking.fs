@@ -111,26 +111,36 @@ module Mocking =
 
             if hasOutParameter then
                 let outParams = baseMethod.GetParameters() |> Array.filter (fun p -> p.IsOut)
-                let genOutParamIL (p : ParameterInfo) =
+                let genOutParamIL i (p : ParameterInfo) =
                     let outType = p.ParameterType.GetElementType()
                     let storageName = outStorageFieldName p.Name
                     let storageField = typeBuilder.DefineField(storageName, outType.MakeArrayType(), FieldAttributes.Private ||| FieldAttributes.Static)
                     let counterName = outCounterFieldName p.Name
                     let counterField = typeBuilder.DefineField(counterName, typeof<int>, FieldAttributes.Private ||| FieldAttributes.Static)
-                    
-                    ilGenerator.Emit(OpCodes.Ldarg, p.Position)
+
+                    let normalCase = ilGenerator.DefineLabel()
+                    let count = outValues[i].Length
+
+                    ilGenerator.Emit(OpCodes.Ldsfld, counterField)
+                    ilGenerator.Emit(OpCodes.Ldc_I4, count)
+                    ilGenerator.Emit(OpCodes.Blt, normalCase)
+
+                    ilGenerator.Emit(OpCodes.Ldstr, name)
+                    ilGenerator.Emit(OpCodes.Newobj, typeof<UnexpectedMockCallException>.GetConstructor([|typeof<string>|]))
+                    ilGenerator.Emit(OpCodes.Throw)
+
+                    ilGenerator.MarkLabel(normalCase)
+                    ilGenerator.Emit(OpCodes.Ldarg_0)
                     ilGenerator.Emit(OpCodes.Ldsfld, storageField)
                     ilGenerator.Emit(OpCodes.Ldsfld, counterField)
-                    // ilGenerator.Emit(OpCodes.Ldelem_Ref)
-                    // ilGenerator.Emit(OpCodes.Stind_Ref)
                     ilGenerator.Emit(OpCodes.Ldelem, outType)
-                    ilGenerator.Emit(OpCodes.Stind_I4)
+                    ilGenerator.Emit(OpCodes.Stobj, outType)
 
                     ilGenerator.Emit(OpCodes.Ldsfld, counterField)
                     ilGenerator.Emit(OpCodes.Ldc_I4_1)
                     ilGenerator.Emit(OpCodes.Add)
                     ilGenerator.Emit(OpCodes.Stsfld, counterField)
-                outParams |> Array.iter genOutParamIL
+                outParams |> Array.iteri genOutParamIL
 
             if returnType <> typeof<Void> then
                 let storageField = typeBuilder.DefineField(storageFieldName, returnType.MakeArrayType(), FieldAttributes.Private ||| FieldAttributes.Static)
