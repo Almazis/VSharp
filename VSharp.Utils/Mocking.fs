@@ -130,7 +130,7 @@ module Mocking =
                     ilGenerator.Emit(OpCodes.Throw)
 
                     ilGenerator.MarkLabel(normalCase)
-                    ilGenerator.Emit(OpCodes.Ldarg_0)
+                    ilGenerator.Emit(OpCodes.Ldarg, p.Position)
                     ilGenerator.Emit(OpCodes.Ldsfld, storageField)
                     ilGenerator.Emit(OpCodes.Ldsfld, counterField)
                     ilGenerator.Emit(OpCodes.Ldelem, outType)
